@@ -4,6 +4,7 @@
 #include <TlHelp32.h>
 #include <string>
 #include <psapi.h>
+#include <iomanip>
 #pragma comment(lib, "psapi")
 
 using namespace std;
@@ -135,13 +136,42 @@ int ReadPointerInt(HANDLE processHandle, int startAddress, int offsets[], int of
            GetPointerAddress(processHandle, startAddress, offsets, offsetCount));
 }
 
+BOOL WriteInt(HANDLE processHandle, int address, int buffer) {
+    if (address == -1)
+        return -1;
+    SIZE_T NumberOfBytesToWrite = sizeof(buffer); //this is equal to 4
+    SIZE_T NumberOfBytesActuallyWrite;
+
+    BOOL ok = WriteProcessMemory(processHandle,
+                                 (LPCVOID)address,
+                                 &buffer,
+                                 NumberOfBytesToWrite, 
+                                 &NumberOfBytesActuallyWrite);
+    if (!ok || NumberOfBytesToWrite != NumberOfBytesActuallyWrite) {
+        return FALSE;
+    }
+    return TRUE;
+
+}
+
+BOOL WritePointerInt(HANDLE processHandle, int startAddress, int offsets[], int offsetCount, int buffer) {
+    if (startAddress == -1)
+        return -1;
+    return WriteInt(processHandle,
+           GetPointerAddress(processHandle, startAddress, offsets, offsetCount),
+           buffer);
+}
+
 int main() {
     ////// Players addresses ////////
     int PLAYER_PTR_OFFSET = 0x7030;
     int PLAYER_HP_OFFSET[] = {0x24};
+    ////// New values ///////////////
+    int maxHP = 100;
     /////////////////////////////////
     int pid;
     int baseAddress;
+    BOOL ok;
     HANDLE processHandle;
     string processName = "a.exe";
 
@@ -154,16 +184,32 @@ int main() {
     cout << "PID: " << pid << endl;
 
     processHandle = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
+
     baseAddress = GetModuleBase(processHandle, processName);
-    cout << "Base address: " << baseAddress << endl;
+    cout << "Base address: " 
+         << showbase // show the 0x prefix
+         << internal // fill between the prefix and the number
+         << setfill('0') // fill with 0s
+         << hex << baseAddress << endl;
 
     int playersAddress = baseAddress + PLAYER_PTR_OFFSET; // a.exe+0x7030
     int ptrOffset[] = {0x0};
-    int playerOneAddress = ReadPointerInt(processHandle, 
+    int playersHpAddress = ReadPointerInt(processHandle, 
                                           playersAddress, 
                                           PLAYER_HP_OFFSET, 
                                           1); // playersAddress+0x24 <-- hp
-    cout << "Players hp = " << playerOneAddress << endl;
+    cout << "Players hp = " << dec << playersHpAddress << endl;
 
+    cout << "Setting players HP to 100...." << endl;
+    ok = WritePointerInt(processHandle,
+                         playersAddress,
+                         PLAYER_HP_OFFSET,
+                         1,
+                         maxHP);
+    if (!ok) {
+        cout << "Failed to write memory" << endl;
+        return 1;
+    }
+        
     return 0;
 }
