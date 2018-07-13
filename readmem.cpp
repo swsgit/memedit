@@ -162,6 +162,26 @@ BOOL WritePointerInt(HANDLE processHandle, int startAddress, int offsets[], int 
            buffer);
 }
 
+BOOL FreezeAddressInt(HANDLE processHandle, int startAddress, int offsets[], int offsetCount) {
+    int addressValue;
+    bool alive = true;
+    if (startAddress == -1)
+        return FALSE;
+    addressValue = ReadInt(processHandle, 
+                           GetPointerAddress(processHandle, 
+                                             startAddress, 
+                                             offsets, 
+                                             offsetCount));
+    while (alive == true) {
+        alive = WriteInt(processHandle,
+                         GetPointerAddress(processHandle, 
+                                           startAddress, 
+                                           offsets, 
+                                           offsetCount),
+                                           addressValue);
+    }
+}
+
 int main() {
     ////// Players addresses ////////
     int PLAYER_PTR_OFFSET = 0x7030;
@@ -210,6 +230,15 @@ int main() {
         cout << "Failed to write memory" << endl;
         return 1;
     }
-        
+
+    cout << "Freezing players HP to 100...." << endl;
+    ok = FreezeAddressInt(processHandle, 
+                          playersAddress, 
+                          PLAYER_HP_OFFSET, 
+                          1); // playersAddress+0x24 <-- hp)
+    if (!ok) {
+        cout << processName << " has ended execution" << endl;
+    }
+
     return 0;
 }
